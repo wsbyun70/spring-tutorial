@@ -9,7 +9,7 @@
 
 - **목표**: Spring Boot로 도서(Book) CRUD REST API 만들기 (총 5단계)
 - **스택**: Spring Boot 2.7.18 · Java 8 · Maven 3.9 · H2 (인메모리)
-- **현재 진행 상황**: Step 1 ~ 3 완료 (Step 4, 5 남음 — [PROGRESS.md](PROGRESS.md) 참조)
+- **현재 진행 상황**: **Step 1 ~ 5 모두 완료** ✅ (튜토리얼 완주 — [PROGRESS.md](PROGRESS.md) 참조)
 - **대상 독자**: Spring Boot를 처음 접하는 개발자
 
 ---
@@ -73,8 +73,8 @@ http://localhost:8081/h2-console
 | **Step 1** | 프로젝트 골격 | `@SpringBootApplication`, Starter, Embedded Tomcat | [docs/step-01-project-skeleton.md](docs/step-01-project-skeleton.md) |
 | **Step 2** | 첫 REST 엔드포인트 | `@RestController`, `@PathVariable`, `@RequestParam`, JSON 자동 변환 | [docs/step-02-rest-endpoint.md](docs/step-02-rest-endpoint.md) |
 | **Step 3** | JPA + H2 데이터베이스 | `@Entity`, `JpaRepository`, 메서드 이름 기반 쿼리 | [docs/step-03-jpa-h2.md](docs/step-03-jpa-h2.md) |
-| **Step 4** | Service 계층 + CRUD | `@Service`, `@RequestBody`, `ResponseEntity` | _(예정)_ |
-| **Step 5** | 검증 + 예외 처리 | `@Valid`, `@ExceptionHandler` | _(예정)_ |
+| **Step 4** | Service 계층 + CRUD | `@Service`, `@Transactional`, `@RequestBody`, `ResponseEntity`, JPA Dirty Checking | [docs/step-04-service-crud.md](docs/step-04-service-crud.md) |
+| **Step 5** | 검증 + 예외 처리 | `@Valid`, Bean Validation, `@RestControllerAdvice`, `@ExceptionHandler` | [docs/step-05-validation-exception.md](docs/step-05-validation-exception.md) |
 
 각 문서에 포함되는 내용:
 - 🎯 이 단계의 목표
@@ -100,16 +100,23 @@ spring-tutorial/
 ├─ docs/                                       ← 단계별 학습 문서
 │  ├─ step-01-project-skeleton.md
 │  ├─ step-02-rest-endpoint.md
-│  └─ step-03-jpa-h2.md
+│  ├─ step-03-jpa-h2.md
+│  ├─ step-04-service-crud.md
+│  └─ step-05-validation-exception.md
 │
 └─ src/
    ├─ main/
    │  ├─ java/com/example/book/
    │  │  ├─ BookTutorialApplication.java       ← 진입점
    │  │  ├─ HelloController.java               ← Step 2: REST 엔드포인트
-   │  │  ├─ Book.java                          ← Step 3: Entity
+   │  │  ├─ Book.java                          ← Step 3+5: Entity + 검증
    │  │  ├─ BookRepository.java                ← Step 3: JpaRepository
-   │  │  └─ DataSeeder.java                    ← Step 3: 초기 데이터 삽입
+   │  │  ├─ DataSeeder.java                    ← Step 3: 초기 데이터 삽입
+   │  │  ├─ BookService.java                   ← Step 4+5: 비즈니스 로직
+   │  │  ├─ BookController.java                ← Step 4+5: REST CRUD
+   │  │  ├─ BookNotFoundException.java         ← Step 5: 사용자 정의 예외
+   │  │  ├─ ErrorResponse.java                 ← Step 5: 에러 응답 DTO
+   │  │  └─ GlobalExceptionHandler.java        ← Step 5: 전역 예외 처리
    │  └─ resources/
    │     └─ application.yml                    ← 서버 / DB / JPA 설정
    └─ test/
@@ -118,24 +125,31 @@ spring-tutorial/
 
 ---
 
-## 🎯 현재 동작하는 기능 (Step 3 시점)
+## 🎯 현재 동작하는 기능 (Step 5 완료 시점)
 
-### HTTP 엔드포인트
+### 학습용 인사 엔드포인트 (Step 2)
 | 메서드 | 경로 | 응답 |
 |---|---|---|
 | GET | `/hello` | `Hello, Spring Boot!` |
 | GET | `/hello/{name}` | `Hello, {name}!` |
 | GET | `/greet?name=...&times=...` | `Hi {name}! ({times} times)` |
 | GET | `/info` | `{"app":"book-tutorial","version":"...","javaVersion":"..."}` |
-| GET | `/h2-console` | H2 데이터베이스 브라우저 콘솔 |
 
-### 데이터베이스
-- 기동 시 `BOOK` 테이블 자동 생성 (Hibernate DDL)
-- 샘플 도서 4권 자동 삽입 (DataSeeder)
-- 메서드 이름 기반 쿼리 동작 — `findByAuthor()`
+### 도서 CRUD REST API (Step 4 + 5)
+| 메서드 | 경로 | 본문 | 정상 응답 | 에러 응답 |
+|---|---|---|---|---|
+| GET | `/api/books` | — | 200 + JSON 배열 | — |
+| GET | `/api/books/{id}` | — | 200 + 단일 객체 | 404 + 에러 JSON |
+| POST | `/api/books` | Book JSON | 201 + Location 헤더 | 400 (검증) |
+| PUT | `/api/books/{id}` | Book JSON | 200 + 수정된 객체 | 400 / 404 |
+| DELETE | `/api/books/{id}` | — | 204 No Content | 404 |
 
-### 도서 CRUD 엔드포인트
-- 아직 없음 → **Step 4에서 추가 예정**
+### 운영 도구
+- `/h2-console` — H2 브라우저 콘솔 (JDBC URL: `jdbc:h2:mem:bookdb`)
+- 기동 시 샘플 도서 4권 자동 삽입 (`DataSeeder`)
+- 메서드 이름 기반 쿼리 — `findByAuthor()`
+- 검증 실패 시 한국어 에러 메시지 자동 (Hibernate Validator i18n)
+- 일관된 에러 응답 JSON 포맷 (timestamp, status, message, path, fieldErrors)
 
 ---
 
